@@ -7,6 +7,27 @@ from datetime import datetime
 # importing OpenCV, time and Pandas library
 import cv2
 import pandas
+import logging, sys,signal
+import configparser
+
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s - %(message)s',
+                    datefmt='%d-%b-%y %H:%M:%S')
+
+
+#droidcampass
+config = configparser.ConfigParser()
+config.read_file(open(r'private_config.txt'))
+droidcampass = config.get('cam_setting', 'droidcampass')
+
+need_to_end = False
+def signal_handler(sig, frame):
+    print('You pressed Ctrl+C!')
+    global need_to_end
+    need_to_end = True
+
+
+signal.signal(signal.SIGINT, signal_handler,)
+
 
 # Assigning our static_back to None
 static_back = None
@@ -16,21 +37,45 @@ motion_list = [None, None]
 
 # Time of movement
 time = []
-
-
+video_show = False
 
 # Capturing video
-video = cv2.VideoCapture('http://192.168.8.132:4747/video')
+video = cv2.VideoCapture('http://' + droidcampass + '@192.168.8.132:4747/video')
 
-skip_frame_cnt=0
-out2f=None
+is_init = True
+skip_frame_cnt = 0
+out2f = None
 # Infinite while loop to treat stack of image as video
 is_in_motion = False
+in_motion_cnt = 0
+write_cnt = 0
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
+out2f = cv2.VideoWriter(datetime.now().strftime("%Y%m%d%H%M%S") + '.avi', fourcc, 20.0, (640, 480))
 while True:
     # Reading frame(image) from video
     check, frame = video.read()
+
+    if skip_frame_cnt < 10:
+        # print("----")
+        # print(skip_frame_cnt)
+        skip_frame_cnt = skip_frame_cnt + 1
+        continue
+
     if is_in_motion:
+
+        if write_cnt < 600:
+            pass
+        else:
+            static_back = None
+            out2f.release()
+            write_cnt = 0
+            out2f = cv2.VideoWriter(datetime.now().strftime("%Y%m%d%H%M%S") + '.avi', fourcc, 20.0, (640, 480))
+
         out2f.write(frame)
+        write_cnt += 1
+
+    if in_motion_cnt > 0:
+        in_motion_cnt += 1
 
     # Initializing motion = 0(no motion)
     motion = 0
@@ -46,13 +91,6 @@ while True:
     # of static_back to our first frame
 
     if static_back is None:
-
-        if skip_frame_cnt < 10:
-            print("----")
-            print(skip_frame_cnt)
-            skip_frame_cnt = skip_frame_cnt + 1
-            continue
-
         static_back = gray
         continue
 
@@ -68,14 +106,14 @@ while True:
     # Finding contour of moving object
     cnts, _ = cv2.findContours(thresh_frame.copy(),
                                cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    #print(cnts)
+    # print(cnts)
     for contour in cnts:
         ctaaa = cv2.contourArea(contour)
-        #print(ctaaa)
+        # print(ctaaa)
         if ctaaa < 10000:
             continue
         motion = 1
-        #print(ctaaa)
+        # print(ctaaa)
 
         (x, y, w, h) = cv2.boundingRect(contour)
         # making green rectangle around the moving object
@@ -87,38 +125,41 @@ while True:
     motion_list = motion_list[-2:]
 
     # Appending Start time of motion
+
     if motion_list[-1] == 1 and motion_list[-2] == 0:
+        in_motion_cnt = 1
         time.append(datetime.now())
-        is_in_motion=True
-        fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        out2f = cv2.VideoWriter('output.avi', fourcc, 20.0, (640, 480))
+        is_in_motion = True
 
     # Appending End time of motion
     if motion_list[-1] == 0 and motion_list[-2] == 1:
+        logging.info(f"in_motion_cnt:{in_motion_cnt}")
+        in_motion_cnt = 0
         time.append(datetime.now())
-        is_in_motion=False
+        is_in_motion = False
 
-    # Displaying image in gray_scale
-    cv2.imshow("Gray Frame", gray)
+    if video_show:
+        # Displaying image in gray_scale
+        cv2.imshow("Gray Frame", gray)
 
-    # Displaying the difference in currentframe to
-    # the staticframe(very first_frame)
-    cv2.imshow("Difference Frame", diff_frame)
+        # Displaying the difference in currentframe to
+        # the staticframe(very first_frame)
+        cv2.imshow("Difference Frame", diff_frame)
 
-    # Displaying the black and white image in which if
-    # intensity difference greater than 30 it will appear white
-    cv2.imshow("Threshold Frame", thresh_frame)
+        # Displaying the black and white image in which if
+        # intensity difference greater than 30 it will appear white
+        cv2.imshow("Threshold Frame", thresh_frame)
 
-    # Displaying color frame with contour of motion of object
-    cv2.imshow("Color Frame", frame)
+        # Displaying color frame with contour of motion of object
+        cv2.imshow("Color Frame", frame)
 
     key = cv2.waitKey(1)
     # if q entered whole process will stop
-    if key == ord('q'):
+    if key == ord('q') or need_to_end:
         # if something is movingthen it append the end time of movement
         if motion == 1:
             time.append(datetime.now())
-            is_in_motion=False
+            is_in_motion = False
         break
 result_list = []
 # Appending time of motion in DataFrame
@@ -134,3 +175,6 @@ video.release()
 
 # Destroying all the windows
 cv2.destroyAllWindows()
+logging.info("==============end=========")
+
+
