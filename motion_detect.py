@@ -36,7 +36,7 @@ static_back = None
 motion_list = [None, None]
 
 # Time of movement
-time = []
+# time = []
 video_show = False
 
 # Capturing video
@@ -53,6 +53,8 @@ fourcc = cv2.VideoWriter_fourcc(*'XVID')
 out2f = cv2.VideoWriter(datetime.now().strftime("%Y%m%d%H%M%S") + '.avi', fourcc, 20.0, (640, 480))
 while True:
     # Reading frame(image) from video
+    # drop frames every time to lower cpu usage
+    video.set(cv2.CAP_PROP_POS_FRAMES, 30)
     check, frame = video.read()
 
     if skip_frame_cnt < 10:
@@ -128,14 +130,14 @@ while True:
 
     if motion_list[-1] == 1 and motion_list[-2] == 0:
         in_motion_cnt = 1
-        time.append(datetime.now())
+        # time.append(datetime.now())
         is_in_motion = True
 
     # Appending End time of motion
     if motion_list[-1] == 0 and motion_list[-2] == 1:
         logging.info(f"in_motion_cnt:{in_motion_cnt}")
         in_motion_cnt = 0
-        time.append(datetime.now())
+        # time.append(datetime.now())
         is_in_motion = False
 
     if video_show:
@@ -158,17 +160,20 @@ while True:
     if key == ord('q') or need_to_end:
         # if something is movingthen it append the end time of movement
         if motion == 1:
-            time.append(datetime.now())
+            # time.append(datetime.now())
             is_in_motion = False
         break
-result_list = []
-# Appending time of motion in DataFrame
-for i in range(0, len(time), 2):
-    result_list.append({"Start": time[i], "End": time[i + 1]})
-df = pandas.DataFrame(data=result_list)
+
+
+
+# result_list = []
+# # Appending time of motion in DataFrame
+# for i in range(0, len(time), 2):
+#     result_list.append({"Start": time[i], "End": time[i + 1]})
+# df = pandas.DataFrame(data=result_list)
 
 # Creating a CSV file in which time of movements will be saved
-df.to_csv("Time_of_movements.csv")
+# df.to_csv("Time_of_movements.csv")
 if out2f:
     out2f.release()
 video.release()
