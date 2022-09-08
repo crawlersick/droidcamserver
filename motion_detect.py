@@ -18,6 +18,7 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s 
 config = configparser.ConfigParser()
 config.read_file(open(r'private_config.txt'))
 droidcampass = config.get('cam_setting', 'droidcampass')
+camip = config.get('cam_setting', 'camip')
 
 need_to_end = False
 def signal_handler(sig, frame):
@@ -37,10 +38,10 @@ motion_list = [None, None]
 
 # Time of movement
 # time = []
-video_show = False
+video_show = True
 
 # Capturing video
-video = cv2.VideoCapture('http://' + droidcampass + '@192.168.8.132:4747/video')
+video = cv2.VideoCapture('http://' + droidcampass + '@' + camip + ':4747/video')
 
 is_init = True
 skip_frame_cnt = 0

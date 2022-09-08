@@ -1,0 +1,3 @@
+[cam_setting]
+droidcampass=username:passwd
+camip=1.1.1.1
