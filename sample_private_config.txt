@@ -1,3 +1,8 @@
+[mail_setting]
+sender_email=xxxxx
+receiver_email=xxxxxx
+password=xxxxxx
+smtp_ssl_server=smtp.163.com
 [cam_setting]
 droidcampass=username:passwd
 camip=1.1.1.1

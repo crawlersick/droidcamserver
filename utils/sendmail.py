@@ -22,6 +22,9 @@ body = "This is an email with attachment sent from Python"
 sender_email = config.get('mail_setting', 'sender_email')
 receiver_email = config.get('mail_setting', 'receiver_email')
 password = config.get('mail_setting', 'password')
+# smtp server , such as : "smtp.163.com"
+smtp_ssl_server = config.get('mail_setting', 'password')
+
 
 # Create a multipart message and set headers
 message = MIMEMultipart()
@@ -57,6 +60,6 @@ text = message.as_string()
 
 # Log in to server using secure context and send email
 context = ssl.create_default_context()
-with smtplib.SMTP_SSL("smtp.163.com", 465, context=context) as server:
+with smtplib.SMTP_SSL(smtp_ssl_server, 465, context=context) as server:
     server.login(sender_email, password)
     server.sendmail(sender_email, receiver_email, text)
