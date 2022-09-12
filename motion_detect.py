@@ -208,4 +208,4 @@ while True and not need_to_end:
                 os.remove(current_file_name)
 
         logging.info("============may not ready ,wait for retry===================")
-        #time.sleep(10)
+        time.sleep(10)
