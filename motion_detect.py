@@ -17,6 +17,10 @@ import cv2
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s - %(message)s',
                     datefmt='%d-%b-%y %H:%M:%S')
+
+
+out2f = None
+video = None
 current_file_name = None
 need_to_end = False
 while True and not need_to_end:
@@ -51,6 +55,8 @@ while True and not need_to_end:
 
         # Capturing video
         video = cv2.VideoCapture('http://' + droidcampass + '@' + camip + ':4747/video')
+        if not video.isOpened():
+            raise ValueError(" video is not open!")
 
         is_init = True
         skip_frame_cnt = 0
@@ -195,9 +201,11 @@ while True and not need_to_end:
         traceback.print_exc()
         if out2f:
             out2f.release()
+        if video:
+            video.release()
         if current_file_name:
             if os.path.getsize(current_file_name) < 10240:
                 os.remove(current_file_name)
 
         logging.info("============may not ready ,wait for retry===================")
-        time.sleep(10)
+        #time.sleep(10)
