@@ -56,7 +56,9 @@ while True and not need_to_end:
         # Capturing video
         video = cv2.VideoCapture('http://' + droidcampass + '@' + camip + ':4747/video')
         if not video.isOpened():
-            raise ValueError(" video is not open!")
+            raise ValueError(" video is not open1!")
+        if not out2f.isOpened():
+            raise ValueError(" video is not open2!")
 
         is_init = True
         skip_frame_cnt = 0
