@@ -1,6 +1,6 @@
 # Python program to implement
 # Webcam Motion Detector
-
+from pathlib import Path
 import configparser
 # import pandas
 import logging
@@ -18,6 +18,20 @@ import cv2
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s - %(message)s',
                     datefmt='%d-%b-%y %H:%M:%S')
 
+# droidcampass
+config = configparser.ConfigParser()
+config.read_file(open(r'private_config.txt'))
+droidcampass = config.get('cam_setting', 'droidcampass')
+camip = config.get('cam_setting', 'camip')
+storage_path = config.get('cam_setting', 'storage_path')
+
+try:
+    Path(storage_path+"/test").touch()
+except Exception as e:
+    logging.info(f"{storage_path} do not have permission!")
+    sys.exit(1)
+
+
 video_show = False
 out2f = None
 video = None
@@ -25,16 +39,6 @@ current_file_name = None
 need_to_end = False
 while True and not need_to_end:
     try:
-
-        # droidcampass
-        config = configparser.ConfigParser()
-        config.read_file(open(r'private_config.txt'))
-        droidcampass = config.get('cam_setting', 'droidcampass')
-        camip = config.get('cam_setting', 'camip')
-
-
-
-
         def signal_handler(sig, frame):
             print('You pressed Ctrl+C!')
             global need_to_end
@@ -68,7 +72,7 @@ while True and not need_to_end:
         in_motion_cnt = 0
         write_cnt = 0
         fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        current_file_name = datetime.now().strftime("%Y%m%d%H%M%S") + '.avi'
+        current_file_name = storage_path + "/" + datetime.now().strftime("%Y%m%d%H%M%S") + '.avi'
 
         out2f = cv2.VideoWriter(current_file_name, fourcc, 20.0, (640, 480))
         if out2f:
@@ -95,7 +99,7 @@ while True and not need_to_end:
                     static_back = None
                     out2f.release()
                     write_cnt = 0
-                    current_file_name = datetime.now().strftime("%Y%m%d%H%M%S") + '.avi'
+                    current_file_name = storage_path + "/" + datetime.now().strftime("%Y%m%d%H%M%S") + '.avi'
                     out2f = cv2.VideoWriter(current_file_name, fourcc, 20.0, (640, 480))
 
                 out2f.write(frame)

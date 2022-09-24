@@ -6,3 +6,4 @@ smtp_ssl_server=smtp.163.com
 [cam_setting]
 droidcampass=username:passwd
 camip=1.1.1.1
+storage_path=/xxxx/xxxxxx/xxx
