@@ -84,8 +84,6 @@ while True and not need_to_end:
             # drop frames every time to lower cpu usage
             video.set(cv2.CAP_PROP_POS_FRAMES, 30)
             check, frame = video.read()
-            if not check:
-                continue
 
             if skip_frame_cnt < 10:
                 # print("----")
@@ -120,16 +118,19 @@ while True and not need_to_end:
             # so that change can be find easily
             gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
+            gray_gpu=cv2.cuda_GpuMat()
+            gray_gpu.upload(gray)
+
             # In first iteration we assign the value
             # of static_back to our first frame
 
             if static_back is None:
-                static_back = gray
+                static_back = gray_gpu
                 continue
 
             # Difference between static background
             # and current frame(which is GaussianBlur)
-            diff_frame = cv2.absdiff(static_back, gray)
+            diff_frame = cv2.absdiff(static_back, gray_gpu)
 
             # If change in between static background and
             # current frame is greater than 30 it will show white color(255)
