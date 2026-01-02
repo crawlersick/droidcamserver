@@ -82,7 +82,7 @@ while True and not need_to_end:
         while True:
             # Reading frame(image) from video
             # drop frames every time to lower cpu usage
-            video.set(cv2.CAP_PROP_POS_FRAMES, 30)
+            # video.set(cv2.CAP_PROP_POS_FRAMES, 30)
             check, frame = video.read()
             if not check:
                 continue
