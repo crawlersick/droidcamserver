@@ -1,5 +1,6 @@
 # Python program to implement
 # Webcam Motion Detector
+import gc
 from pathlib import Path
 import configparser
 # import pandas
@@ -17,6 +18,8 @@ import cv2
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s - %(message)s',
                     datefmt='%d-%b-%y %H:%M:%S')
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "hwaccel;vaapi|vaapi_device;/dev/dri/renderD128"
+cv2.ocl.setUseOpenCL(True)
 
 # droidcampass
 config = configparser.ConfigParser()
@@ -31,21 +34,22 @@ except Exception as e:
     logging.info(f"{storage_path} do not have permission!")
     sys.exit(1)
 
+need_to_end = False
+
+def signal_handler(sig, frame):
+    print('You pressed Ctrl+C!')
+    global need_to_end
+    need_to_end = True
+
+signal.signal(signal.SIGINT, signal_handler)
 
 video_show = False
 out2f = None
 video = None
 current_file_name = None
-need_to_end = False
-while True and not need_to_end:
+
+while not need_to_end:
     try:
-        def signal_handler(sig, frame):
-            print('You pressed Ctrl+C!')
-            global need_to_end
-            need_to_end = True
-
-
-        signal.signal(signal.SIGINT, signal_handler, )
 
         # Assigning our static_back to None
         static_back = None
@@ -58,7 +62,8 @@ while True and not need_to_end:
 
 
         # Capturing video
-        video = cv2.VideoCapture('http://' + droidcampass + '@' + camip + ':4747/video')
+        #video = cv2.VideoCapture('http://' + droidcampass + '@' + camip + ':4747/video')
+        video = cv2.VideoCapture('http://' + droidcampass + '@' + camip + ':4747/video', cv2.CAP_FFMPEG)
         if video:
             if not video.isOpened():
                 raise ValueError(" video is not open1!")
@@ -87,6 +92,8 @@ while True and not need_to_end:
             if not check:
                 continue
 
+            g_frame = cv2.UMat(frame)
+
             if skip_frame_cnt < 10:
                 # print("----")
                 # print(skip_frame_cnt)
@@ -114,7 +121,9 @@ while True and not need_to_end:
             motion = 0
 
             # Converting color image to gray_scale image
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            #gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(g_frame, cv2.COLOR_BGR2GRAY)
+            del g_frame
 
             # Converting gray scale image to GaussianBlur
             # so that change can be find easily
@@ -137,7 +146,8 @@ while True and not need_to_end:
             thresh_frame = cv2.dilate(thresh_frame, None, iterations=2)
 
             # Finding contour of moving object
-            cnts, _ = cv2.findContours(thresh_frame.copy(),
+            #cnts, _ = cv2.findContours(thresh_frame.copy(),
+            cnts, _ = cv2.findContours(thresh_frame,
                                        cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             # print(cnts)
             for contour in cnts:
@@ -219,6 +229,14 @@ while True and not need_to_end:
         if current_file_name:
             if os.path.getsize(current_file_name) < 10240:
                 os.remove(current_file_name)
+    finally:
+        # 无论成功还是失败，都确保清理
+        if video is not None:
+            video.release()
+        if out2f is not None:
+            out2f.release()
+        cv2.destroyAllWindows()
+        gc.collect() # 强制 Python 释放未引用的内存
 
         logging.info("============may not ready ,wait for retry===================")
         time.sleep(10)
