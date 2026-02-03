@@ -152,6 +152,7 @@ while not need_to_end:
             # 内存优化：每1000帧清理一次垃圾回收
             if skip_frame_cnt % 1000 == 0:
                 gc.collect()
+                skip_frame_cnt = 0
 
             # 退出检测
             if cv2.waitKey(1) & 0xFF == ord('q'):
