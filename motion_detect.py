@@ -150,7 +150,7 @@ while not need_to_end:
                 write_cnt = 0
 
             # 内存优化：每1000帧清理一次垃圾回收
-            if skip_frame_cnt % 1000 == 0:
+            if skip_frame_cnt > 1000:
                 gc.collect()
                 skip_frame_cnt = 0
 
