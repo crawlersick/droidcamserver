@@ -1,242 +1,175 @@
-# Python program to implement
-# Webcam Motion Detector
-import gc
-from pathlib import Path
-import configparser
-# import pandas
-import logging
 import os
-import signal
-import sys
-# importing datetime class from datetime library
-import time
-import traceback
-from datetime import datetime
-
-# importing OpenCV, time and Pandas library
 import cv2
+import sys
+import time
+import signal
+import logging
+import traceback
+import configparser
+import gc
+from datetime import datetime
+from pathlib import Path
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s - %(message)s',
-                    datefmt='%d-%b-%y %H:%M:%S')
-os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "hwaccel;vaapi|vaapi_device;/dev/dri/renderD128"
-cv2.ocl.setUseOpenCL(True)
+# 配置日志
+logging.basicConfig(
+    stream=sys.stdout, 
+    level=logging.INFO, 
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%d-%b-%y %H:%M:%S'
+)
 
-# droidcampass
-config = configparser.ConfigParser()
-config.read_file(open(r'private_config.txt'))
-droidcampass = config.get('cam_setting', 'droidcampass')
-camip = config.get('cam_setting', 'camip')
-storage_path = config.get('cam_setting', 'storage_path')
-
+# --- 1. 初始化配置 (移出循环) ---
 try:
-    Path(storage_path+"/test").touch()
+    config = configparser.ConfigParser()
+    with open('private_config.txt', 'r') as f:
+        config.read_file(f)
+    
+    droidcampass = config.get('cam_setting', 'droidcampass')
+    camip = config.get('cam_setting', 'camip')
+    storage_path = config.get('cam_setting', 'storage_path')
+    
+    # 权限检查
+    test_file = Path(storage_path) / "test_perm.tmp"
+    test_file.touch()
+    test_file.unlink()
 except Exception as e:
-    logging.info(f"{storage_path} do not have permission!")
+    logging.error(f"Initialization failed: {e}")
     sys.exit(1)
 
+# --- 2. 信号处理 (全局设置) ---
 need_to_end = False
 
 def signal_handler(sig, frame):
-    print('You pressed Ctrl+C!')
     global need_to_end
+    logging.info("Interrupt received, shutting down...")
     need_to_end = True
 
 signal.signal(signal.SIGINT, signal_handler)
 
-video_show = False
-out2f = None
-video = None
-current_file_name = None
+def release_resources(video, out2f):
+    """安全释放资源的辅助函数"""
+    if video is not None:
+        video.release()
+    if out2f is not None:
+        out2f.release()
+    cv2.destroyAllWindows()
+    gc.collect() # 显式回收内存
 
+# --- 3. 主程序循环 ---
 while not need_to_end:
+    video = None
+    out2f = None
+    current_file_name = None
+    
     try:
-
-        # Assigning our static_back to None
-        static_back = None
-
-        # List when any moving object appear
-        motion_list = [None, None]
-
-        # Time of movement
-        # time = []
-
-
-        # Capturing video
-        #video = cv2.VideoCapture('http://' + droidcampass + '@' + camip + ':4747/video')
-        video = cv2.VideoCapture('http://' + droidcampass + '@' + camip + ':4747/video', cv2.CAP_FFMPEG)
+        source_url = f'http://{droidcampass}@{camip}:4747/video'
+        video = cv2.VideoCapture(source_url)
+        
         if video:
             if not video.isOpened():
-                raise ValueError(" video is not open1!")
+                raise ValueError("Could not connect to camera stream.")
 
-
-        is_init = True
-        skip_frame_cnt = 0
-        # out2f = None
-        # Infinite while loop to treat stack of image as video
-        is_in_motion = False
-        in_motion_cnt = 0
-        write_cnt = 0
+        # 动态获取分辨率
+        frame_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+        frame_height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps = 20.0
         fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        current_file_name = storage_path + "/" + datetime.now().strftime("%Y%m%d%H%M%S") + '.avi'
 
-        out2f = cv2.VideoWriter(current_file_name, fourcc, 20.0, (640, 480))
-        if out2f:
-            if not out2f.isOpened():
-                raise ValueError(" video is not open2!")
+        static_back = None
+        motion_list = [0, 0]
+        is_in_motion = False
+        write_cnt = 0
+        skip_frame_cnt = 0
 
-        while True:
-            # Reading frame(image) from video
-            # drop frames every time to lower cpu usage
-            # video.set(cv2.CAP_PROP_POS_FRAMES, 30)
+        logging.info("Camera connected. Starting monitoring...")
+
+        while not need_to_end:
             check, frame = video.read()
             if not check:
-                continue
+                logging.warning("Frame read failed, attempting reconnect...")
+                break
 
-            g_frame = cv2.UMat(frame)
-
+            # 前10帧用于环境适应，不处理
             if skip_frame_cnt < 10:
-                # print("----")
-                # print(skip_frame_cnt)
-                skip_frame_cnt = skip_frame_cnt + 1
+                skip_frame_cnt += 1
                 continue
 
-            if is_in_motion:
-
-                if write_cnt < 600:
-                    pass
-                else:
-                    static_back = None
-                    out2f.release()
-                    write_cnt = 0
-                    current_file_name = storage_path + "/" + datetime.now().strftime("%Y%m%d%H%M%S") + '.avi'
-                    out2f = cv2.VideoWriter(current_file_name, fourcc, 20.0, (640, 480))
-
-                out2f.write(frame)
-                write_cnt += 1
-
-            if in_motion_cnt > 0:
-                in_motion_cnt += 1
-
-            # Initializing motion = 0(no motion)
-            motion = 0
-
-            # Converting color image to gray_scale image
-            #gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            gray = cv2.cvtColor(g_frame, cv2.COLOR_BGR2GRAY)
-            del g_frame
-
-            # Converting gray scale image to GaussianBlur
-            # so that change can be find easily
+            # 运动检测预处理
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             gray = cv2.GaussianBlur(gray, (21, 21), 0)
-
-            # In first iteration we assign the value
-            # of static_back to our first frame
 
             if static_back is None:
                 static_back = gray
                 continue
 
-            # Difference between static background
-            # and current frame(which is GaussianBlur)
+            # 计算差异
             diff_frame = cv2.absdiff(static_back, gray)
-
-            # If change in between static background and
-            # current frame is greater than 30 it will show white color(255)
             thresh_frame = cv2.threshold(diff_frame, 50, 255, cv2.THRESH_BINARY)[1]
             thresh_frame = cv2.dilate(thresh_frame, None, iterations=2)
 
-            # Finding contour of moving object
-            #cnts, _ = cv2.findContours(thresh_frame.copy(),
-            cnts, _ = cv2.findContours(thresh_frame,
-                                       cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            # print(cnts)
+            cnts, _ = cv2.findContours(thresh_frame.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            motion = 0
             for contour in cnts:
-                ctaaa = cv2.contourArea(contour)
-                # print(ctaaa)
-                if ctaaa < 10000:
+                if cv2.contourArea(contour) < 10000:
                     continue
                 motion = 1
-                # print(ctaaa)
+                #(x, y, w, h) = cv2.boundingRect(contour)
+                #cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 3)
 
-                (x, y, w, h) = cv2.boundingRect(contour)
-                # making green rectangle around the moving object
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 3)
-
-            # Appending status of motion
+            # 更新运动状态
             motion_list.append(motion)
-
             motion_list = motion_list[-2:]
 
-            # Appending Start time of motion
-
+            # 状态机逻辑
             if motion_list[-1] == 1 and motion_list[-2] == 0:
-                in_motion_cnt = 1
-                # time.append(datetime.now())
                 is_in_motion = True
+                # 开始新文件录制
+                current_file_name = os.path.join(storage_path, datetime.now().strftime("%Y%m%d%H%M%S") + '.avi')
+                out2f = cv2.VideoWriter(current_file_name, fourcc, fps, (frame_width, frame_height))
+                logging.info(f"Motion detected! Recording to: {current_file_name}")
 
-            # Appending End time of motion
+            if is_in_motion and out2f:
+                out2f.write(frame)
+                write_cnt += 1
+                
+                # 每录制约30秒(600帧)滚动一次文件，防止文件过大
+                if write_cnt > 600:
+                    out2f.release()
+                    out2f = None
+                    write_cnt = 0
+                    static_back = None # 重新捕捉背景以适应光线变化
+                    is_in_motion = False 
+
             if motion_list[-1] == 0 and motion_list[-2] == 1:
-                logging.info(f"in_motion_cnt:{in_motion_cnt}")
-                in_motion_cnt = 0
-                # time.append(datetime.now())
+                logging.info("Motion stopped.")
+                if out2f:
+                    out2f.release()
+                    out2f = None
                 is_in_motion = False
+                write_cnt = 0
 
-            if video_show:
-                # Displaying image in gray_scale
-                cv2.imshow("Gray Frame", gray)
+            # 内存优化：每1000帧清理一次垃圾回收
+            if skip_frame_cnt % 1000 == 0:
+                gc.collect()
 
-                # Displaying the difference in currentframe to
-                # the staticframe(very first_frame)
-                cv2.imshow("Difference Frame", diff_frame)
-
-                # Displaying the black and white image in which if
-                # intensity difference greater than 30 it will appear white
-                cv2.imshow("Threshold Frame", thresh_frame)
-
-                # Displaying color frame with contour of motion of object
-                cv2.imshow("Color Frame", frame)
-
-            key = cv2.waitKey(1)
-            # if q entered whole process will stop
-            if key == ord('q') or need_to_end:
-                # if something is movingthen it append the end time of movement
-                if motion == 1:
-                    # time.append(datetime.now())
-                    is_in_motion = False
+            # 退出检测
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                need_to_end = True
                 break
 
-        # result_list = []
-        # # Appending time of motion in DataFrame
-        # for i in range(0, len(time), 2):
-        #     result_list.append({"Start": time[i], "End": time[i + 1]})
-        # df = pandas.DataFrame(data=result_list)
-
-        # Creating a CSV file in which time of movements will be saved
-        # df.to_csv("Time_of_movements.csv")
-        if out2f:
-            out2f.release()
-        video.release()
-
-        # Destroying all the windows
-        cv2.destroyAllWindows()
-        logging.info("==============end=========")
-    except Exception as e:
-        traceback.print_exc()
-        if out2f:
-            out2f.release()
-        if video:
-            video.release()
-        if current_file_name:
+    except Exception:
+        logging.error("Runtime error occurred:")
+        logging.error(traceback.format_exc())
+        
+        # 异常处理：清理过小的文件（通常是损坏的录像）
+        if current_file_name and os.path.exists(current_file_name):
             if os.path.getsize(current_file_name) < 10240:
                 os.remove(current_file_name)
     finally:
-        # 无论成功还是失败，都确保清理
-        if video is not None:
-            video.release()
-        if out2f is not None:
-            out2f.release()
-        cv2.destroyAllWindows()
-        gc.collect() # 强制 Python 释放未引用的内存
+        release_resources(video, out2f)
+        if not need_to_end:
+            logging.info("Retrying in 10 seconds...")
+            time.sleep(10)
 
-        logging.info("============may not ready ,wait for retry===================")
-        time.sleep(10)
+logging.info("Program terminated cleanly.")
