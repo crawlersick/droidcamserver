@@ -151,11 +151,7 @@ while not need_to_end:
                 write_cnt += 1
         
                 # 逻辑 3：停止录制判断
-                # 条件：当前没运动 且 距离上次运动已经超过了延迟时间 (例如 10秒)
-                # 或者：为了防止单文件过大，达到 30 秒强制分段（可选）
-                time_since_last_motion = time.time() - last_motion_time
-        
-                if time_since_last_motion > recording_delay:
+                if motion == 0 and (time.time() - last_motion_time) > recording_delay:
                     logging.info(f"No motion for {recording_delay}s. Stop recording.")
                     out2f.release()
                     out2f = None
