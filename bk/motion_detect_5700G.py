@@ -108,12 +108,13 @@ while not need_to_end:
             # 初始化/更新背景
             if avg_background is None:
                 # 初始背景同步回 CPU 设置为 float
-                avg_background = u_gray.get().astype("float")
+                avg_background = u_gray.get().astype("float32")
                 del u_frame, u_gray
+                cv2.ocl.finish()
                 continue
+            else:
+                cv2.accumulateWeighted(u_gray, avg_background, 0.05)
 
-            # 动态调整背景：权重 0.05 意味着背景会缓慢吸收环境光线的变化
-            cv2.accumulateWeighted(u_gray.get(), avg_background, 0.05)
             u_avg_abs = cv2.UMat(cv2.convertScaleAbs(avg_background))
             
             # 计算当前帧与动态背景的差异
@@ -158,7 +159,7 @@ while not need_to_end:
                     is_recording = False
                     write_cnt = 0
             
-                elif write_cnt > 1200: # 强制分段由 600 帧(30s)提升到 1200 帧(1分钟)
+                elif write_cnt > 1200 and motion == 1: # 强制分段由 600 帧(30s)提升到 1200 帧(1分钟)
                     logging.info("Reaching max segment length. Rolling to next file...")
                     out2f.release()
                     # 立即开启下一个衔接文件
@@ -172,12 +173,15 @@ while not need_to_end:
             del u_diff
             del u_avg_abs
             del u_thresh
+            cv2.ocl.finish()
+            cv2.ocl.setUseOpenCL(False)
+            cv2.ocl.setUseOpenCL(True)
+            gc.collect()
 
             # 内存回收
             if skip_frame_cnt > 1000:
                 gc.collect()
                 skip_frame_cnt=0
-                cv2.ocl.finish()
 
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
